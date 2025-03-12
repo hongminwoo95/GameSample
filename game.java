@@ -3,12 +3,13 @@ package Main;
 import java.awt.Dimension; // 
 import java.awt.Graphics;
 import java.awt.Image; // 이미지불러오는 메소드
-import java.awt.Point;
 import java.awt.Toolkit; // 이미지파일 경로 찾아올수 있는것
 import java.awt.event.KeyEvent; // 키 이벤트 가능하게 해주는 임포트
 import java.awt.event.KeyListener; // 키이벤트 수신하도록 등록된 List 목록?? 같은느낌? 셋트인듯?
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.ArrayList;
-
+import javax.imageio.ImageIO; //ImageReaders와 ImageWriters를 찾고 간단한 인코딩과 디코딩을 수행하기 위한 정적 편의 메서드를 포함하는 클래스입니다 .
 import javax.swing.JFrame;// Frame클래스 속성중에서 사용자에게 보여줄것인지 아닌지 boolean타입
 //.setVisible(true) : 창을 화면에 나타낼 것인지 설정 여부
 //.setSize(300,300) : 창의 가로와 세로 길이를 설정
@@ -42,6 +43,9 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 	int f_height = 600;
 	
 	int x, y; // 캐릭터의 좌표 변수
+
+	int[] cx ={0, 0, 0}; // 배경 스크롤 속도 제어용 변수
+	int bx = 0; // 전체 배경 스크롤 용 변수
 	
 	boolean KeyUp = false; // 키보드 방향키 입력 처리를 위한 변수
 	boolean KeyDown = false; // 키보드 방향키 입력 처리를 위한 변수
@@ -50,6 +54,21 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 	boolean KeySpace = false; //미사일 발사를 위한 키보드 스페이스키 입력을 추가합니다.
 	
 	int cnt; //각종 타이밍 조절을 위해 무한 루프를 카운터할 변수
+	
+	int player_Speed; // 유저의 캐릭터가 움직이는 속도를 조절할 변수
+	int missile_Speed; // 미사일이 날라가는 속도 조절할 변수
+	int fire_Speed; // 미사일 연사 속도 조절 변수
+	int enemy_speed; // 적 이동 속도 설정
+	int player_Status = 0; 
+	// 유저 캐릭터 상태 체크 변수 0 : 평상시, 1: 미사일발사, 2: 충돌
+	int game_Score; // 게임 점수 계산
+	int player_Hitpoint; // 플레이어 캐릭터의 체력
+
+	//int e_w, e_h;  //소스 변경으로 인해 해당 변수가 필요없어졌습니다
+	//int m_w, m_h; 
+	
+	int e_w, e_h; //적 이미지의 크기값을 받을 변수
+	int m_w, m_h; //미사일 이미지의 크기값을 받을 변수
 	
 	Thread th; // 스레드 생성
 	Image Missile_img; //미사일 이미지 변수
@@ -65,7 +84,7 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 	// 이미지를 불러오기 위한 툴킷
 	
 	
-	Image me_img = tk.getImage("C:/Users/hu-11/Desktop\\\\이미지/aaa.png");
+	Image me_img;
 	// 해당 저장폴더 위치에 f15k.png 라는 이미지를 불러옵니다.
 	
 	
@@ -105,9 +124,20 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 		
 		me_img = tk.getImage("C:/Users/hu-11/Desktop\\이미지/ccc.png");
 			//   ↑ tk = <- Toolkit.getDefaultToolkit GUI 작업시 사용하는 유틸리티 클래스를 참조하여 이미지를 보낸다
-		Missile_img = tk.getImage("C:/Users/hu-11/Desktop\\이미지/bbb.png");
+		Missile_img = tk.getImage("C:/Users/hu-11/Desktop\\이미지/qqq.jpg");
 			//   ↑ tk = <- Toolkit.getDefaultToolkit GUI 작업시 사용하는 유틸리티 클래스를 참조하여 이미지를 보낸다
-		Enemy_img = tk.getImage("C:/Users/hu-11/Desktop\\이미지/aaa.png");  //적 이미지 생성
+		Enemy_img = tk.getImage("C:/Users/hu-11/Desktop\\이미지/qqq.jpg");  //적 이미지 생성
+		
+		e_w = ImageWidthValue("C:/Users/hu-11/Desktop\\\\이미지/aaa.png");
+		e_h = ImageHeightValue("C:/Users/hu-11/Desktop\\\\이미지/aaa.png");
+		//적 이미지의 w(넓이)값, h(높이) 값을 계산하여 받습니다.
+		//해당 메소드는 아래에 이미지 크기값 계산용으로
+		//추가된 메소드 입니다.
+		
+
+		m_w = ImageWidthValue("C:/Users/hu-11/Desktop\\\\이미지/qqq.jpg");
+		m_h = ImageHeightValue("C:/Users/hu-11/Desktop\\\\이미지/qqq.jpg");
+		//미사일 이미지의 w(넓이)값, h(높이) 값
 	}
 	
 	public void start() {
@@ -132,9 +162,31 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 	}
 	public void MissileProcess(){ // 미사일 처리 메소드
 		if ( KeySpace ){ 		  // 스페이스바 키 상태가 true 면
-		ms = new Missile(x,y);    // 좌표 체크하여 넘기기
+		ms = new Missile(x+300,y+30);    // 좌표 체크하여 넘기기 안쪽 인수는 미사일 정확한 위치를 표시하기위함
 		Missile_List.add(ms);      // 해당 미사일 추가
 		}
+
+		for ( int i = 0 ; i < Missile_List.size() ; ++i){
+			ms = (Missile) Missile_List.get(i);
+			ms.move();
+			if ( ms.x > f_width - 20 ){
+			Missile_List.remove(i);
+			}
+			//편의상 그림그리기 부분에 있던 미사일 이동과
+			//미사일이 화면에서 벗어났을시 명령 처리를
+			//이쪽으로 옮겼습니다.
+		for (int j = 0 ; j < Enemy_List.size(); ++ j){
+			en = (Enemy) Enemy_List.get(j);
+			if (Crash(ms.x,ms.y,en.x,en.y, m_w, m_h, e_w, e_h)){
+			//미사일과 적 객체를 하나하나 판별하여
+			//접촉했을시 미사일과 적을 화면에서 지웁니다.
+			//판별엔 Crash 메소드에서 계산하는 방식을 씁니다.
+			Missile_List.remove(i);
+			Enemy_List.remove(j);
+			}
+		}
+		}
+		
 	}
 	public void EnemyProcess(){//적 행동 처리 메소드
 
@@ -161,6 +213,27 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 		}
 
 	}
+	public boolean Crash(int x1, int y1, int x2, int y2, int w1, int h1, int w2, int h2){
+		//﻿충돌 판정을 위한 새로운 Crash 메소드를 만들었습니다.
+		//판정을 위해 충돌할 두 사각 이미지의 좌표 및 
+		//넓이와 높이값을 받아들입니다.
+		//여기서 이미지의 넓이, 높이값을 계산하기 위해 밑에 보면
+		//이미지 크기 계산용 메소드를 또 추가했습니다.
+		boolean check = false;
+
+		if ( Math.abs( ( x1 + w1 / 2 )  - ( x2 + w2 / 2 ))  <  ( w2 / 2 + w1 / 2 )  
+		&& Math.abs( ( y1 + h1 / 2 )  - ( y2 + h2 / 2 ))  <  ( h2 / 2 + h1/ 2 ) ){
+		//충돌 계산식입니다. 사각형 두개의 거리및 겹치는 여부를 확인
+		//하는 방식이라고 알고 있는데, 만들다보니 생각보다 식이 
+		//복잡해진것 같습니다.
+		//이보다 더 간편한 방식이 있을 것도 같은데 
+		//일단 이렇게 해봤습니다.
+		check = true;//위 값이 true면 check에 true를 전달합니다.
+		}else{ check = false;}
+
+		return check; //check의 값을 메소드에 리턴 시킵니다.
+
+	}
 	public void paint(Graphics g){ //
 		buffImage = createImage(f_width, f_height); 
 		//               ↑ createImage <- 지정된 바이트 배열에 저장된 이미지를 지정된 오프셋과 길이로 디코딩하는 이미지 생성 (버퍼)
@@ -180,14 +253,14 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 		ms = (Missile) (Missile_List.get(i)); 
 		// 미사일 위치값을 확인
 
-		buffg.drawImage(Missile_img, ms.pos.x + 150, ms.pos.y + 30, this); 
+		buffg.drawImage(Missile_img, ms.x + 150, ms.y + 30, this); 
 		// 현재 좌표에 미사일 그리기.
 		// 이미지 크기를 감안한 미사일 발사 좌표는 수정됨.
 
 		ms.move();
 		// 그려진 미사일을 정해진 숫자만큼 이동시키기
 
-		if ( ms.pos.x > f_width ){ // 미사일이 화면 밖으로 나가면
+		if ( ms.x > f_width ){ // 미사일이 화면 밖으로 나가면
 		Missile_List.remove(i); // 미사일 지우기
 		}
 		}
@@ -262,22 +335,47 @@ class game_Frame extends JFrame implements KeyListener, Runnable {
 		if (KeyRight == true)
 			x += 5;
 	}
-	
+	public int ImageWidthValue(String file){ 
+		// 이미지 넓이 크기 값 계산용 메소드 입니다.
+		// 파일을 받아들여 그 파일 값을 계산 하도록 하는 것입니다.
+		int x = 0;
+		try{
+		File f = new File(file); // 파일을 받습니다.
+		BufferedImage bi = ImageIO.read(f);
+		//받을 파일을 이미지로 읽어들입니다.
+		x = bi.getWidth(); //이미지의 넓이 값을 받습니다.
+		}catch(Exception e){}
+		return x; //받은 넓이 값을 리턴 시킵니다.
+		}
+
+		public int ImageHeightValue(String file){ // 이미지 높이 크기 값 계산
+		int y = 0;
+		try{
+		File f = new File(file);
+		BufferedImage bi = ImageIO.read(f);
+		y = bi.getHeight();
+		}catch(Exception e){}
+		return y;
+		}
 	class Missile{ // 미사일 위치 파악 및 이동을 위한 클래스 추가 
 
-		Point pos; //미사일 좌표 변수
-		 
+		int x;
+		int y; //편의상 변수 명 변경
 		Missile(int x, int y){ //미사일 좌표를 입력 받는 메소드
-		pos = new Point(x, y); //미사일 좌표를 체크
+			this.x = x; 
+			this.y = y;//편의상 변수명 변경
 		}
+		
 		public void move(){ //미사일 이동을 위한 메소드
-		pos.x += 10; //x 좌표에 10만큼 미사일 이동
+		x += 10; //x 좌표에 10만큼 미사일 이동
 		}
+		
 	}
 	public void Draw_Enemy(){ // 적 이미지를 그리는 부분
 		for (int i = 0 ; i < Enemy_List.size() ; ++i ){
 		en = (Enemy)(Enemy_List.get(i));
 		buffg.drawImage(Enemy_img, en.x, en.y, this);
+		
 		//배열에 생성된 각 적을 판별하여 이미지 그리기
 		}
 	}
